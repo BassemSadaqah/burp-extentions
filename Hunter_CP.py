@@ -124,8 +124,11 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 
 		# self._requestViewer.setMessage(None, True)
 		# self._responseViewer.setMessage(None, True)
-	def sendToCacher(self,event):
-		selectedRow = self.logTable.getSelectedRow()
+	def sendToCacher(self,rowID):   #rowID will be passed as an event object if called from right click menu
+		if(isinstance(rowID, int)):
+			selectedRow=rowID
+		else:
+			selectedRow = self.logTable.getSelectedRow()
 		if(selectedRow > -1):
 			selectedCpRequestResponse = self.log_requests[selectedRow][0]
 			selectedOriginalRequestResponse = self.log_requests[selectedRow][1]
@@ -137,7 +140,7 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 		cache_buster=str(random.randint(1, 1000000))
 		cpRequest=cpRequestResponse.getRequest()
 		cpRequest=self._helpers.updateParameter(cpRequest,self._helpers.buildParameter('xcachebuster',cache_buster,0))
-		for i in range(5): cpReqs.append(self._callbacks.makeHttpRequest(cpRequestResponse.getHttpService(),cpRequest))
+		for i in range(self.cacherSlider.getValue()): cpReqs.append(self._callbacks.makeHttpRequest(cpRequestResponse.getHttpService(),cpRequest))
 		originalRequest=originalRequestResponse.getRequest()
 		originalRequest=self._helpers.updateParameter(originalRequest,self._helpers.buildParameter('xcachebuster',cache_buster,0))
 		originalResponse=self._callbacks.makeHttpRequest(originalRequestResponse.getHttpService(),originalRequest)
@@ -168,10 +171,10 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 				headers=self._callbacks.getHeaders(req.getResponse())
 				for header in headers:
 					if('HIT' in header):
-						isHit=true
+						isHit=True
 						self.addCacherRow(logSelectedRow,req,originalResponse,'Maybe')
 						break
-			
+				if isHit: break
 		if(isHit==False and isCached==False): self.addCacherRow(logSelectedRow,cpReqs[-1],originalResponse,'False')
 			
 
@@ -262,18 +265,27 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 		self.startButton.setMaximumSize(Dimension(200, 35));
 		self.inScopeCheckBox=JCheckBox("Only In-Scope requests",selected=True);
 		self.dontRepeatRequests=JCheckBox("Don't Repeat Requests",selected=True);
+		self.autoSendToCacherIfAkamai=JCheckBox("Auto test Akamai & awslb",selected=False);
+		self.autoSendToCacher=JCheckBox("Auto send to cacher",selected=False);
 		self.compareSize=JCheckBox("Compare Size",selected=True);
 		self.fastMode=JCheckBox("Fast Mode");
 		# self.checkForHunterx=JCheckBox("Search for hunterx in responses");
 		self.inScopeCheckBox.setAlignmentX(Component.CENTER_ALIGNMENT)
+		self.autoSendToCacherIfAkamai.setAlignmentX(Component.CENTER_ALIGNMENT)
+		self.autoSendToCacher.setAlignmentX(Component.CENTER_ALIGNMENT)
 		self.dontRepeatRequests.setAlignmentX(Component.CENTER_ALIGNMENT)
 		self.fastMode.setAlignmentX(Component.CENTER_ALIGNMENT)
 		self.compareSize.setAlignmentX(Component.CENTER_ALIGNMENT)
 		# self.checkForHunterx.setAlignmentX(Component.CENTER_ALIGNMENT)
-		# slider1 = JSlider(0,10,5)
-
+		cacherSliderLabel=JLabel("Cacher Threads (5-20)")
+		cacherSliderLabel.setAlignmentX(Component.CENTER_ALIGNMENT)
+		self.cacherSlider = JSlider(5,20,5)
+		self.cacherSlider.setMaximumSize(Dimension(200, 35));
 		self.payloadsLabel=JLabel("Payloads")
 		payloads_box = JPanel()
+		payloadScrollPane = JScrollPane(payloads_box)
+		payloadScrollPane.setMaximumSize(Dimension(400, 35));
+		payloadScrollPane.setAlignmentX(Component.CENTER_ALIGNMENT)
 		payloads_box.setLayout(BoxLayout(payloads_box, BoxLayout.Y_AXIS))
 		payloads_box.setAlignmentX(Component.CENTER_ALIGNMENT)
 		for payload in self.payload_headers:
@@ -290,13 +302,17 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
   		configPanel.add(self.inScopeCheckBox)
   		configPanel.add(self.dontRepeatRequests)
   		configPanel.add(self.compareSize)
+  		configPanel.add(self.autoSendToCacherIfAkamai)
+  		configPanel.add(self.autoSendToCacher)
   		configPanel.add(self.fastMode)
-  		# configPanel.add(slider1)
 		configPanel.add(Box.createRigidArea(Dimension(0, 20)))
+  		configPanel.add(cacherSliderLabel)
+  		configPanel.add(self.cacherSlider)
+		configPanel.add(Box.createRigidArea(Dimension(0, 5)))
   		configPanel.add(self.payloadsLabel)
-		configPanel.add(Box.createRigidArea(Dimension(0, 20)))
+		configPanel.add(Box.createRigidArea(Dimension(0, 5)))
 		for payload in self.payload_headers: payloads_box.add(payload[2])
-		configPanel.add(payloads_box)
+		configPanel.add(payloadScrollPane)
 		configPanel.add(Box.createRigidArea(Dimension(0, 20)))
   		# configPanel.add(Box.createVerticalGlue())
   		configPanel.add(self.resetButton)
@@ -358,6 +374,8 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 			flag='no-store'
 		elif(re.search(r'Cache-Control.*private',headers_all,re.IGNORECASE)):
 			flag='private'
+		elif(re.search(r'Akamai',headers_all,re.IGNORECASE)):
+			flag='Akamai'
 		elif(re.search(r'Cache-Control.*public',headers_all,re.IGNORECASE)):
 			flag='public'
 		elif(re.search(r'awselb',headers_all,re.IGNORECASE)):
@@ -368,14 +386,16 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 			flag='Pragma: no-cache'
 		# elif(re.search(r'Cache-Control: max-age=0',headers_all,re.IGNORECASE)):
 		# 	flag='max-age=0'
-		elif(re.search(r'Akamai',headers_all,re.IGNORECASE)):
-			flag='Akamai'
 		elif(re.search(r'Cache-Control: public',headers_all,re.IGNORECASE)):
 			flag='public'
 
 		self.logTableID+=1
 		self.tableModel.addRow([self.logTableID,url,str(originalStatusCode),str(newStatusCode),payload,reason[1],flag])
 		self.log_requests.append([modifiedRequest,originalRequest,url,payload,reason[0],reason[1]])
+		if(self.autoSendToCacher.isSelected()):
+			self.sendToCacher(len(self.log_requests)-1)
+		elif(flag=='Akamai' and self.autoSendToCacherIfAkamai.isSelected()): 		#Auto Send requests to cacher if Akamai or Awselb flag exists in response
+			self.sendToCacher(len(self.log_requests)-1)
 
 	def makeReqWithPayloads(self,request_response,req_headers,payload_headers):
 		filtered_req_headers=[]
