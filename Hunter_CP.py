@@ -265,7 +265,7 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 		self.startButton.setMaximumSize(Dimension(200, 35));
 		self.inScopeCheckBox=JCheckBox("Only In-Scope requests",selected=True);
 		self.dontRepeatRequests=JCheckBox("Don't Repeat Requests",selected=True);
-		self.autoSendToCacherIfAkamai=JCheckBox("Auto test Akamai & awslb",selected=False);
+		self.autoSendToCacherIfAkamai=JCheckBox("Auto test Akamai",selected=False);
 		self.autoSendToCacher=JCheckBox("Auto send to cacher",selected=False);
 		self.compareSize=JCheckBox("Compare Size",selected=True);
 		self.fastMode=JCheckBox("Fast Mode");
@@ -377,10 +377,10 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 			flag='private'
 		elif(re.search(r'Akamai',headers_all,re.IGNORECASE)):
 			flag='Akamai'
-		elif(re.search(r'Cache-Control.*public',headers_all,re.IGNORECASE)):
-			flag='public'
 		elif(re.search(r'awselb',headers_all,re.IGNORECASE)):
 			flag='awselb'
+		elif(re.search(r'Cache-Control.*public',headers_all,re.IGNORECASE)):
+			flag='public'
 		elif(re.search(r'Cache-Control.*no-cache',headers_all,re.IGNORECASE)):
 			flag='no-cache'
 		elif(re.search(r'Pragma.*no-cache',headers_all,re.IGNORECASE)):
