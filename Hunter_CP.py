@@ -175,7 +175,7 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 						self.addCacherRow(logSelectedRow,req,originalResponse,'Maybe')
 						break
 				if isHit: break
-		if(isHit==False and isCached==False): self.addCacherRow(logSelectedRow,cpReqs[-1],originalResponse,'False')
+		if(isHit==False and isCached==False): self.addCacherRow(logSelectedRow,cpReqs[-1],originalResponse,' ') #Adding False Row to cacher table 
 			
 
 
