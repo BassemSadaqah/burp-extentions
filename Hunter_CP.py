@@ -27,7 +27,7 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 	isRunning=True
 	payload_headers=[['\\','huicodehui'],['X-Forwarded-Scheme','huicodehui'],['X-Forwarded-Host','huicodehui'],['X-Forwarded-For','huicodehui.com'],['X-Forwarded-Proto','123'],['X-HTTP-Method-Override','POST'],['x-amz-website-redirect-location','huicodehui'],['Authorization: huicodehui\nx: huicodehui\nAuthorization','huicodehui'],
 		['X-Rewrite-Url','huicodehui'],['Authorization','huicodehui'],['X-Host','huicodehui'],['User-Agent','huicodehui'],['handle','huicodehui'],['X-Original-Url','huicodehui'],['X-Original-Host','huicodehui'],['X-Forwarded-Prefix','huicodehui'],['x-amz-server-side-encryption','huicodehui'],['Trailer','huicodehui'],['Fastly-SSL','huicodehui'],['Fastly-Host','huicodehui'],
-		['Fastly-FF','huicodehui'],['Fastly-Client-IP','huicodehui'],['Content-Type','huicodehui'],['api-version','huicodehui'],['acunetix-header','huicodehui'],['Accept-Version','huicodehui'],['Accept-Encoding','huicodehui'],['Referer','huicodehui'],['X-Forwarded-Port','123'],['Null-Byte',b"\x00".decode("utf-8")],['Location','/huicodehui'],['TooLong','x'*5000]]
+		['Fastly-FF','huicodehui'],['Fastly-Client-IP','huicodehui'],['Content-Type','huicodehui'],['api-version','huicodehui'],['acunetix-header','huicodehui'],['Accept-Version','huicodehui'],['Accept-Encoding','huicodehui'],['Referer','huicodehui'],['Origin','huicodehui'],['X-Forwarded-Port','123'],['Null-Byte',b"\x00".decode("utf-8")],['Location','/huicodehui'],['TooLong','x'*5000]]
 
 	def registerExtenderCallbacks(self, callbacks):
 		self._callbacks = callbacks 
