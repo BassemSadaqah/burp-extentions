@@ -148,16 +148,18 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 		originalResponseText = self._helpers.bytesToString(originalResponse.getResponse())
 		isCached=False
 		isHit=False
-		if(reasonId == 0):
+		if(reasonId == 0):   #Status Code
 			for req in cpReqs:
 				if(req.getStatusCode() == originalResponse.getStatusCode()):
 					isCached=True
-					self.addCacherRow(logSelectedRow,req,originalResponse,'True')
+					reqStatusCode=req.getStatusCode()
+					if(not ((self.hide200.isSelected() and reqStatusCode==200) or (self.hide403.isSelected() and reqStatusCode == 403) or (self.hide429.isSelected() and reqStatusCode == 429))):
+						self.addCacherRow(logSelectedRow,req,originalResponse,'True')
 					break
-		elif(reasonId == 1 and 'huicodehui' in originalResponseText):
+		elif(reasonId == 1 and 'huicodehui' in originalResponseText):    #Reflected
 			isCached=True
 			self.addCacherRow(logSelectedRow,cpReqs[-1],originalResponse,'True')
-		elif(reasonId == 2 ):
+		elif(reasonId == 2 ):      #Size
 			for req in cpReqs:
 				cpResText=self._helpers.bytesToString(req.getResponse())
 				responseSimilarity=(float(len(cpResText))/float(len(originalResponseText)))*100
@@ -175,7 +177,7 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 						self.addCacherRow(logSelectedRow,req,originalResponse,'Maybe')
 						break
 				if isHit: break
-		if(isHit==False and isCached==False): self.addCacherRow(logSelectedRow,cpReqs[-1],originalResponse,' ') #Adding False Row to cacher table 
+		if(isHit==False and isCached==False and self.hideFalse.isSelected()==False): self.addCacherRow(logSelectedRow,cpReqs[-1],originalResponse,' ') #Adding False Row to cacher table 
 			
 
 
@@ -269,6 +271,18 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 		self.autoSendToCacher=JCheckBox("Auto send to cacher",selected=False);
 		self.compareSize=JCheckBox("Compare Size",selected=True);
 		self.fastMode=JCheckBox("Fast Mode");
+		self.hideLabel=JLabel('Hide From Cacher:  ')
+		self.hide200=JCheckBox("200",selected=False);
+		self.hide429=JCheckBox("429",selected=True);
+		self.hide403=JCheckBox("403",selected=False);
+		self.hideFalse=JCheckBox("False",selected=False);
+		self.hidePanal=JPanel()
+  		self.hidePanal.setLayout(BoxLayout(self.hidePanal, BoxLayout.X_AXIS))
+		self.hidePanal.add(self.hideLabel)
+		self.hidePanal.add(self.hide200)
+		self.hidePanal.add(self.hide403)
+		self.hidePanal.add(self.hide429)
+		self.hidePanal.add(self.hideFalse)
 		# self.checkForHunterx=JCheckBox("Search for hunterx in responses");
 		self.inScopeCheckBox.setAlignmentX(Component.CENTER_ALIGNMENT)
 		self.autoSendToCacherIfAkamai.setAlignmentX(Component.CENTER_ALIGNMENT)
@@ -306,6 +320,7 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
   		configPanel.add(self.autoSendToCacherIfAkamai)
   		configPanel.add(self.autoSendToCacher)
   		configPanel.add(self.fastMode)
+  		configPanel.add(self.hidePanal)
 		configPanel.add(Box.createRigidArea(Dimension(0, 20)))
   		configPanel.add(cacherSliderLabel)
   		configPanel.add(self.cacherSlider)
