@@ -27,7 +27,7 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 	isRunning=True
 	payload_headers=[['\\','huicodehui'],['X-Forwarded-Scheme','huicodehui'],['X-Forwarded-Host','huicodehui'],['X-Forwarded-For','huicodehui.com'],['X-Forwarded-Proto','123'],['X-HTTP-Method-Override','POST'],['x-amz-website-redirect-location','huicodehui'],['Authorization: huicodehui\nx: huicodehui\nAuthorization','huicodehui'],
 		['X-Rewrite-Url','huicodehui'],['Authorization','huicodehui'],['X-Host','huicodehui'],['User-Agent','huicodehui'],['handle','huicodehui'],['X-Original-Url','huicodehui'],['X-Original-Host','huicodehui'],['X-Forwarded-Prefix','huicodehui'],['x-amz-server-side-encryption','huicodehui'],['Trailer','huicodehui'],['Fastly-SSL','huicodehui'],['Fastly-Host','huicodehui'],
-		['Fastly-FF','huicodehui'],['Fastly-Client-IP','huicodehui'],['Content-Type','huicodehui'],['api-version','huicodehui'],['acunetix-header','huicodehui'],['Accept-Version','huicodehui'],['Accept-Encoding','huicodehui'],['Referer','huicodehui'],['Origin','huicodehui'],['X-Forwarded-Port','123'],['Null-Byte',b"\x00".decode("utf-8")],['Location','/huicodehui'],['TooLong','x'*5000]]
+		['Fastly-FF','huicodehui'],['Fastly-Client-IP','huicodehui'],['Content-Type','huicodehui'],['api-version','huicodehui'],['acunetix-header','huicodehui'],['Accept-Version','huicodehui'],['Accept-Encoding','huicodehui'],['Referer','huicodehui'],['Origin','huicodehui'],['X-Forwarded-Port','123'],['Null-Byte',b"\x00".decode("utf-8")],['Location','/huicodehui'],['Range', 'bytes=-3'],['TooLong','x'*5000]]
 
 	def registerExtenderCallbacks(self, callbacks):
 		self._callbacks = callbacks 
@@ -88,9 +88,9 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 			self._originalResponseViewer.setMessage(self.log_requests[self.logTable.getSelectedRow()][1].getResponse(), True)
 	
 	def cacherRowFocusGained(self,event):
-		self._stdout.println('cacherRowFocusGained')
+		# self._stdout.println('cacherRowFocusGained')
 		if(self.cacherTable.getSelectedRow()!=-1):
-			self._stdout.println('xxxxxxx')
+			# self._stdout.println('xxxxxxx')
 			self._requestViewer.setMessage(self.cacher_requests[self.cacherTable.getSelectedRow()][0].getRequest(), True)
 			self._responseViewer.setMessage(self.cacher_requests[self.cacherTable.getSelectedRow()][0].getResponse(), True)
 			self._originalRequestViewer.setMessage(self.cacher_requests[self.cacherTable.getSelectedRow()][1].getRequest(), True)
@@ -134,6 +134,82 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 			selectedOriginalRequestResponse = self.log_requests[selectedRow][1]
 			reasonId=self.log_requests[selectedRow][4]
 			start_new_thread(self.tryToCache,(selectedRow,selectedCpRequestResponse,selectedOriginalRequestResponse,reasonId))  #last comma to convert to tuple
+	
+	def sendTo404Cacher(self,rowID):   #rowID will be passed as an event object if called from right click menu
+		if(isinstance(rowID, int)):
+			selectedRow=rowID
+		else:
+			selectedRow = self.logTable.getSelectedRow()
+		if(selectedRow > -1):
+			selectedCpRequestResponse = self.log_requests[selectedRow][0]
+			selectedOriginalRequestResponse = self.log_requests[selectedRow][1]
+			reasonId=self.log_requests[selectedRow][4]
+			start_new_thread(self.tryTo404Cache,(selectedRow,selectedCpRequestResponse,selectedOriginalRequestResponse,reasonId))  #last comma to convert to tuple
+
+	def insertIntoRequestUrl(self,requestInfo,path,location):
+		requestHeaders=requestInfo.getHeaders()
+		requestFirstLine=requestHeaders[0].split(' ')
+		requestUrlSplitted = requestFirstLine[1].split('?')[0].split('/')
+		requestUrlSplitted.insert(location,path)
+		modifiedUrl = '/'.join(requestUrlSplitted)
+		modifiedUrlWithParamaters = modifiedUrl+'?'+requestFirstLine[1].split('?')[1]
+		requestFirstLine[1] = modifiedUrlWithParamaters
+		modifiedRequestFirstLine = ' '.join(requestFirstLine)
+		newReqHeaders = [modifiedRequestFirstLine] + requestHeaders[1:]
+		modifiedRequest = self._helpers.buildHttpMessage(newReqHeaders,None)
+		return modifiedRequest
+	def tryTo404Cache(self,logSelectedRow,cpRequestResponse,originalRequestResponse,reasonId):
+		notFoundReqs=[]
+		isCached=False
+		isHit=False
+		cache_buster=str(random.randint(1, 1000000))
+
+
+		#####Request containing the poisoned Header but with the url changed to return 404 
+		originalCpRequest = cpRequestResponse.getRequest()
+		originalCpRequest = self._helpers.updateParameter(originalCpRequest,self._helpers.buildParameter('xcachebuster',str(random.randint(1, 1000000)),0))
+		originalCpRequestInfo = self._helpers.analyzeRequest(cpRequestResponse.getHttpService(),originalCpRequest)
+		modifiedoriginalCpRequest = self.insertIntoRequestUrl(originalCpRequestInfo,'huicodehui',-1)
+		#####Original request with an edited url to return 404 to test for 404 caching
+		originalRequest=originalRequestResponse.getRequest()
+		originalRequest=self._helpers.updateParameter(originalRequest,self._helpers.buildParameter('xcachebuster',cache_buster,0))
+		originalRequestInfo = self._helpers.analyzeRequest(originalRequestResponse.getHttpService(),originalRequest)
+		modifiedOriginalRequest = self.insertIntoRequestUrl(originalRequestInfo,'huicodehui',-1)
+		#####Request containing the poisoned Header but with the url changed to return 404
+		cpRequest = cpRequestResponse.getRequest()
+		cpRequest = self._helpers.updateParameter(cpRequest,self._helpers.buildParameter('xcachebuster',cache_buster,0))
+		cpRequestInfo = self._helpers.analyzeRequest(cpRequestResponse.getHttpService(),cpRequest)
+		modifiedCpRequest = self.insertIntoRequestUrl(cpRequestInfo,'huicodehui',-1)
+		#######
+
+		
+		
+		# print(self._helpers.analyzeRequest(originalRequestResponse.getHttpService(),modifiedOriginalRequest).getHeaders())
+		if(reasonId == 0):
+			newOriginalCpRequestRespone = self._callbacks.makeHttpRequest(cpRequestResponse.getHttpService(),modifiedoriginalCpRequest)
+			for i in range(self.cacherSlider.getValue()): notFoundReqs.append(self._callbacks.makeHttpRequest(cpRequestResponse.getHttpService(),modifiedOriginalRequest))
+			newCpRequestResponse = self._callbacks.makeHttpRequest(cpRequestResponse.getHttpService(),modifiedCpRequest)
+			newCpResponseStatusCode = newCpRequestResponse.getStatusCode()
+			for req in notFoundReqs:
+				headers=self._callbacks.getHeaders(req.getResponse())
+				if(req.getStatusCode() == newCpResponseStatusCode and req.getStatusCode() != newOriginalCpRequestRespone.getStatusCode()):
+					isCached = True
+					self.addCacherRow(logSelectedRow,req,newCpRequestResponse,'True (404)')
+					break
+
+			if(isCached == False):
+				for req in notFoundReqs:
+					for header in headers:
+						if('HIT' in header.split(':')[-1]):
+							print(header)
+							print(header.split(':')[-1])
+							self.addCacherRow(logSelectedRow,req,newCpRequestResponse,'Maybe (404)')
+							isHit = True
+							break
+					if(isHit): break
+			if (isCached == False and isHit == False and self.hideFalse.isSelected()==False):
+				self.addCacherRow(logSelectedRow,notFoundReqs[-1],newCpRequestResponse,'')
+
 
 	def tryToCache(self,logSelectedRow,cpRequestResponse,originalRequestResponse,reasonId):
 		cpReqs=[]
@@ -172,7 +248,7 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 			for req in cpReqs:
 				headers=self._callbacks.getHeaders(req.getResponse())
 				for header in headers:
-					if('HIT' in header):
+					if('HIT' in header.split(':')[-1]):
 						isHit=True
 						self.addCacherRow(logSelectedRow,req,originalResponse,'Maybe')
 						break
@@ -195,11 +271,12 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 
 		#####################Popup Menu##############
 		popupMenu =  JPopupMenu();
-		sendToRepeaterMenu =  JMenuItem("Send to Cacher",actionPerformed=self.sendToCacher);
-		# sendToRepeaterMenu.addActionListener(self.SendRequestRepeater)	
+		sendToCacherMenu =  JMenuItem("Send to Cacher",actionPerformed=self.sendToCacher);
+		sendTo404CacherMenu =  JMenuItem("Send to 404 Cacher",actionPerformed=self.sendTo404Cacher);
 		menuItemCopy =JMenuItem("Copy URL");
 		menuItemClearAll =  JMenuItem("Clear All",actionPerformed=self.clearAll);
-		popupMenu.add(sendToRepeaterMenu);
+		popupMenu.add(sendToCacherMenu);
+		popupMenu.add(sendTo404CacherMenu);
 		popupMenu.add(menuItemCopy);
 		popupMenu.add(menuItemClearAll);
 		##################################TABLE PANEL#############
@@ -269,6 +346,7 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 		self.dontRepeatRequests=JCheckBox("Don't Repeat Requests",selected=True);
 		self.autoSendToCacherIfAkamai=JCheckBox("Auto test Akamai",selected=False);
 		self.autoSendToCacher=JCheckBox("Auto send to cacher",selected=False);
+		self.autoSend404ToCacher=JCheckBox("Auto send 404 to cacher",selected=False);
 		self.compareSize=JCheckBox("Compare Size",selected=True);
 		self.fastMode=JCheckBox("Fast Mode");
 		self.hideLabel=JLabel('Hide From Cacher:  ')
@@ -287,6 +365,7 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 		self.inScopeCheckBox.setAlignmentX(Component.CENTER_ALIGNMENT)
 		self.autoSendToCacherIfAkamai.setAlignmentX(Component.CENTER_ALIGNMENT)
 		self.autoSendToCacher.setAlignmentX(Component.CENTER_ALIGNMENT)
+		self.autoSend404ToCacher.setAlignmentX(Component.CENTER_ALIGNMENT)
 		self.dontRepeatRequests.setAlignmentX(Component.CENTER_ALIGNMENT)
 		self.fastMode.setAlignmentX(Component.CENTER_ALIGNMENT)
 		self.compareSize.setAlignmentX(Component.CENTER_ALIGNMENT)
@@ -318,6 +397,7 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
   		configPanel.add(self.dontRepeatRequests)
   		configPanel.add(self.compareSize)
   		configPanel.add(self.autoSendToCacherIfAkamai)
+  		configPanel.add(self.autoSend404ToCacher)
   		configPanel.add(self.autoSendToCacher)
   		configPanel.add(self.fastMode)
   		configPanel.add(self.hidePanal)
@@ -412,6 +492,8 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 			self.sendToCacher(len(self.log_requests)-1)
 		elif(flag=='Akamai' and self.autoSendToCacherIfAkamai.isSelected()): 		#Auto Send requests to cacher if Akamai or Awselb flag exists in response
 			self.sendToCacher(len(self.log_requests)-1)
+		if(self.autoSend404ToCacher.isSelected()):
+			self.sendTo404Cacher(len(self.log_requests)-1)
 
 	def makeReqWithPayloads(self,request_response,req_headers,payload_headers):
 		filtered_req_headers=[]
@@ -421,7 +503,6 @@ class BurpExtender(IBurpExtender,IMessageEditorTabFactory,IProxyListener,IHttpLi
 			header_name=h.split(':')[0]
 			if(header_name not in payload_headers_names+['If-Modified-Since','If-None-Match']):
 				filtered_req_headers.append(h)
-
 		newReq=self._helpers.buildHttpMessage(filtered_req_headers+filtered_header_parsed,None)
 		newReq=self._helpers.addParameter(newReq,self._helpers.buildParameter('xcachebuster',str(random.randint(1, 1000000)),0))   # PARAM_URL=0
 		new_request_response=self._callbacks.makeHttpRequest(request_response.getHttpService(),newReq)
